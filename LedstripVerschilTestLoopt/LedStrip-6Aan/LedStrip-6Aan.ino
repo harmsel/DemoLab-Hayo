@@ -1,24 +1,17 @@
 #include <Adafruit_NeoPixel.h>
 
 #define PIN_SK A0
-#define NUM_SK 6
+#define NUM_SK 7
 
 #define PIN_WS A1
 #define NUM_WS 6
 
-#define BUTTON_PIN1a 11
-#define BUTTON_PIN1b 10
-#define BUTTON_PIN2a 9
-#define BUTTON_PIN2b 8
-#define BUTTON_PIN3a 7
-#define BUTTON_PIN3b 6
-#define BUTTON_PIN4a 5
-#define BUTTON_PIN4b 4
+#define BUTTON_PIN 11
 
 
 
 
-#define BLOCK_SIZE 4  
+#define BLOCK_SIZE 8  
 
 Adafruit_NeoPixel stripSK(NUM_SK, PIN_SK, NEO_GRBW + NEO_KHZ800);
 Adafruit_NeoPixel stripWS(NUM_WS, PIN_WS, NEO_GRB + NEO_KHZ800);
@@ -38,10 +31,8 @@ void setup() {
 
 void loop() {
   // De animaties draaien constant, tenzij de knop wordt ingedrukt
-  movingBlock(stripSK.Color(255, 0, 0, 0), stripWS.Color(255, 0, 0), 400);
-  movingBlock(stripSK.Color(0, 255, 0, 0), stripWS.Color(0, 255, 0), 400);
-  movingBlock(stripSK.Color(0, 0, 0, 255), stripWS.Color(255, 255, 255), 400);
   movingBlock(stripSK.Color(255, 255, 255, 255), stripWS.Color(255, 255, 255), 400);
+  movingBlock(stripSK.Color(0, 0, 0, 255), stripWS.Color(255, 255, 255), 400);
 }
 
 // Functie die alle leds wit maakt en daar blijft zolang je de knop inhoudt
