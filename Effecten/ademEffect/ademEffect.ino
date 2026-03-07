@@ -1,6 +1,5 @@
 #include <Adafruit_NeoPixel.h>
 
-// Instellingen
 #define PIN A0
 #define NUM 6          // Het aantal leds op je strip
 int maxHelderheid = 50; // De maximale sterkte van het ademen (0-255)
