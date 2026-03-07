@@ -1,8 +1,9 @@
 #include <Adafruit_NeoPixel.h>
+int helderheid = 50;  //max 255
 
-int helderheid = 150;
-#define PIN_SK A0
-#define NUM_SK 6
+
+#define PIN A0
+#define NUM 6
 
 // Knoppen definities
 #define BUTTON_START 12
@@ -15,7 +16,7 @@ int helderheid = 150;
 #define BUTTON_4A 5
 #define BUTTON_4B 4
 
-Adafruit_NeoPixel stripSK(NUM_SK, PIN_SK, NEO_GRBW + NEO_KHZ800);
+Adafruit_NeoPixel strip(NUM, PIN, NEO_GRBW + NEO_KHZ800);
 
 int effectMode = 0;
 bool effectActive = true;
@@ -46,9 +47,9 @@ void setup() {
   pinMode(BUTTON_4A, INPUT_PULLUP);
   pinMode(BUTTON_4B, INPUT_PULLUP);
 
-  stripSK.begin();
-  stripSK.setBrightness(helderheid);
-  stripSK.show();
+  strip.begin();
+  strip.setBrightness(helderheid);
+  strip.show();
   Serial.begin(115200);
 
   lastButtonTime = millis();  // Start de timer
@@ -64,13 +65,106 @@ void loop() {
   }
 
   if (effectActive) {
-    if (effectMode == 0) fireStep(100);
-    else twinkleStep(80);
-  } else {
-    updateBreathing();
+    if (effectMode == 0) {
+      ademEffect(70);
+    } else if (effectMode == 1) {
+      fireStep(100);
+    } else {
+      fireStep(100);
+    }
   }
 }
 
+
+void resetToEffects() {
+  effectActive = true;
+  set1Choice = 0;
+  set2Choice = 0;
+  set3Choice = 0;
+  set4Choice = 0;
+  strip.clear();
+  lastButtonTime = millis();  // Reset timer ook bij handmatige reset
+}
+
+/// --------- LICHT EFFECTEN  ---------------||||||||----------------------////
+
+/// - ademen
+void ademEffect(int ademSnelheid) {
+  static float angle = 0;
+  float intensity = (sin(angle) + 1.0) / 2.0;  // Bereken de helderheid (0.0 tot 1.0)
+  int currentBrightness = intensity * helderheid;
+
+  // Kleur instellen voor alle LED's (hier op wit gezet via het W-kanaal van de GRBW strip)
+  // Je kunt dit aanpassen naar strip.Color(currentBrightness, 0, 0, 0) voor rood, etc.
+  uint32_t color = strip.Color(currentBrightness, currentBrightness, currentBrightness, currentBrightness);
+
+  for (int i = 0; i < NUM; i++) {
+    strip.setPixelColor(i, color);
+  }
+  strip.show();
+  // Verhoog de hoek voor de volgende stap (hoe kleiner de stap, hoe trager het ademen)
+  angle += (pulseSpeed / ademSnelheid);
+  if (angle > TWO_PI) {
+    angle -= TWO_PI;
+  }
+  delay(10);  // Kleine pauze voor stabiliteit
+}
+
+
+
+// EFFECT 3: "Color Wipe Bounce" - Een kleur die heen en weer loopt
+void bounceStep(int wait) {
+  static int pos = 0;
+  static int direction = 1;
+  static uint32_t color = strip.Color(255, 0, 100, 0);  // Roze/Paars
+
+  strip.clear();
+  strip.setPixelColor(pos, color);
+  strip.show();
+
+  pos += direction;
+  if (pos <= 0 || pos >= NUM - 1) {
+    direction *= -1;  // Draai om bij de uiteinden
+    // Verander van kleur bij elk keerpunt (optioneel)
+    if (pos == 0) color = strip.Color(0, 255, 255, 0);  // Cyaan
+    else color = strip.Color(255, 200, 0, 0);           // Goud
+  }
+  delay(wait * 2);
+}
+
+// EFFECT 4: "Theater Chase" - Looplicht effect (wit met kleuren)
+void theaterStep(int wait) {
+  static int q = 0;
+  strip.clear();
+
+  for (int i = 0; i < NUM; i++) {
+    if ((i + q) % 3 == 0) {
+      strip.setPixelColor(i, strip.Color(0, 0, 0, 255));  // Witte pixel
+    } else {
+      strip.setPixelColor(i, strip.Color(50, 0, 150, 0));  // Paarse pixel achtergrond
+    }
+  }
+  strip.show();
+
+  q++;
+  if (q >= 3) q = 0;
+  delay(wait * 1.5);
+}
+
+// EFFECT 5: "Fire Flicker" - Warme flikkering zoals een vuurtje
+void fireStep(int wait) {
+  for (int i = 0; i < NUM; i++) {
+    int flicker = random(50, 200);  // Willekeurige helderheid
+    // Mix van Rood en Oranje/Geel
+    strip.setPixelColor(i, strip.Color(flicker, flicker / 4, 0, 0));
+  }
+  strip.show();
+  delay(wait + random(50));  // Onregelmatige pauze voor realistischer effect
+}
+
+
+
+/// --------- KNOPPEN ------------------------------------------------////
 void checkButtons() {
   // We controleren of er een knop is ingedrukt
   bool pressed = false;
@@ -137,116 +231,3 @@ void checkButtons() {
   }
 }
 
-void resetToEffects() {
-  effectActive = true;
-  set1Choice = 0;
-  set2Choice = 0;
-  set3Choice = 0;
-  set4Choice = 0;
-  stripSK.clear();
-  lastButtonTime = millis();  // Reset timer ook bij handmatige reset
-}
-
-
-/// - ademen ///
-void updateBreathing() {
-  if (fadingIn) {
-    pulseVal += pulseSpeed;
-    if (pulseVal >= 255) {
-      pulseVal = 255;
-      fadingIn = false;
-    }
-  } else {
-    pulseVal -= pulseSpeed;
-    if (pulseVal <= 0) {
-      pulseVal = 0;
-      fadingIn = true;
-    }
-  }
-
-  stripSK.clear();
-  if (set1Choice == 1) stripSK.setPixelColor(0, stripSK.Color(0, 0, 0, (int)pulseVal));
-  else if (set1Choice == 2) stripSK.setPixelColor(1, stripSK.Color(0, 0, 0, (int)pulseVal));
-
-  if (set2Choice == 1) stripSK.setPixelColor(2, stripSK.Color(0, 0, 0, (int)pulseVal));
-  else if (set2Choice == 2) stripSK.setPixelColor(3, stripSK.Color(0, 0, 0, (int)pulseVal));
-
-  if (set3Choice == 1) stripSK.setPixelColor(4, stripSK.Color(0, 0, 0, (int)pulseVal));
-  else if (set3Choice == 2) stripSK.setPixelColor(5, stripSK.Color(0, 0, 0, (int)pulseVal));
-
-  stripSK.show();
-  delay(15);
-}
-
-// --- EFFECTEN ---
-void rainbowStep(int wait) {
-  static uint16_t hue = 0;
-  for (int i = 0; i < NUM_SK; i++) {
-    uint32_t color = stripSK.ColorHSV(hue + (i * 65536 / NUM_SK));
-    stripSK.setPixelColor(i, stripSK.gamma32(color));
-  }
-  stripSK.show();
-  hue += 256;
-  delay(wait);
-}
-
-void twinkleStep(int wait) {
-  int i = random(NUM_SK);
-  stripSK.setPixelColor(i, stripSK.Color(random(255), random(255), random(255), random(255)));
-  stripSK.show();
-  delay(wait);
-  stripSK.setPixelColor(i, 0);
-  stripSK.show();
-}
-
-// --- EXTRA EFFECTEN ---
-
-// EFFECT 3: "Color Wipe Bounce" - Een kleur die heen en weer loopt
-void bounceStep(int wait) {
-  static int pos = 0;
-  static int direction = 1;
-  static uint32_t color = stripSK.Color(255, 0, 100, 0); // Roze/Paars
-
-  stripSK.clear();
-  stripSK.setPixelColor(pos, color);
-  stripSK.show();
-  
-  pos += direction;
-  if (pos <= 0 || pos >= NUM_SK - 1) {
-    direction *= -1; // Draai om bij de uiteinden
-    // Verander van kleur bij elk keerpunt (optioneel)
-    if(pos == 0) color = stripSK.Color(0, 255, 255, 0); // Cyaan
-    else color = stripSK.Color(255, 200, 0, 0); // Goud
-  }
-  delay(wait * 2); 
-}
-
-// EFFECT 4: "Theater Chase" - Looplicht effect (wit met kleuren)
-void theaterStep(int wait) {
-  static int q = 0;
-  stripSK.clear();
-  
-  for (int i = 0; i < NUM_SK; i++) {
-    if ((i + q) % 3 == 0) {
-      stripSK.setPixelColor(i, stripSK.Color(0, 0, 0, 255)); // Witte pixel
-    } else {
-      stripSK.setPixelColor(i, stripSK.Color(50, 0, 150, 0)); // Paarse pixel achtergrond
-    }
-  }
-  stripSK.show();
-  
-  q++;
-  if (q >= 3) q = 0;
-  delay(wait * 1.5);
-}
-
-// EFFECT 5: "Fire Flicker" - Warme flikkering zoals een vuurtje
-void fireStep(int wait) {
-  for (int i = 0; i < NUM_SK; i++) {
-    int flicker = random(50, 200); // Willekeurige helderheid
-    // Mix van Rood en Oranje/Geel
-    stripSK.setPixelColor(i, stripSK.Color(flicker, flicker/4, 0, 0)); 
-  }
-  stripSK.show();
-  delay(wait + random(50)); // Onregelmatige pauze voor realistischer effect
-}
