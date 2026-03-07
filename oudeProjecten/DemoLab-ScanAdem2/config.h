@@ -2,10 +2,6 @@
 #include <Adafruit_NeoPixel.h>
 #include <CapacitiveSensor.h>
 
-// dit heeft de Nano Nodig
-#ifdef __AVR__
-#include <avr/power.h>
-#endif
 
 elapsedMillis standByKnipper;
 elapsedMillis timer;
