@@ -1,278 +1,276 @@
 #include <Adafruit_NeoPixel.h>
 #include <CapacitiveSensor.h>
 
-///  +++++++++++.     instellingen voor de leds +++++++
-int maxHelderheid = 50;
-int scanSnelheid = 200;  //loopschelheid van de scanleds
-int frequentie = 2;      // Rode LED Hoe vaak per seconde (Hz) nipperen
 
-// AANTALLEN EN POSITIE OP DE LEDSTRIPJES
+/// INSTELLINGEN
+int maxHelderheid = 20;
+int scanSnelheid = 100;   // lager getal = snellere scan
+int frequentie = 2;       // knipperfrequentie rode LED
+
 #define NUMPIXELS1 12
 #define NUMPIXELS2 12
 #define NUMPIXELS3 12
-#define KNIPPER_LED 0
+
+#define KNIPPER_LED 0     // positie rode LED
+
+/// SENSOR EN KNOP
+const int knop = 2;
+CapacitiveSensor cs_4_6 = CapacitiveSensor(4,6);
+
+long capSens;
+bool sensorActief = false;   // voorkomt meerdere triggers
+
+/// LEDSTRIPS
+////////////////////////////////////////////////////
+
+Adafruit_NeoPixel strip1(NUMPIXELS1, A0, NEO_GRBW + NEO_KHZ800);
+Adafruit_NeoPixel strip2(NUMPIXELS2, A1, NEO_GRBW + NEO_KHZ800);
+Adafruit_NeoPixel strip3(NUMPIXELS3, A2, NEO_GRBW + NEO_KHZ800);
 
 
-///  --------- AANSLUITINGEN AAN DE ARDUINO ------
-const int knop = 2;                                //drukknop
-CapacitiveSensor cs_4_6 = CapacitiveSensor(4, 6);  // Sensor op pin 6 - 330k tussen 4 & 6
-long capSens; //waarde van de capsensor. Hier even globaal maken 
+/// SCAN VARIABELEN
+int scanPos = 0;
+int scanRichting = 1;
 
-
-
-//#define NUMPIXELS 60 ////VOOR TESTEN
-Adafruit_NeoPixel strip1(NUMPIXELS1, A0, NEO_GRBW + NEO_KHZ800);  // strip 1 zijn de twee vertikale strips
-Adafruit_NeoPixel strip2(NUMPIXELS2, A1, NEO_GRBW + NEO_KHZ800);  // strip 2 is de onderste strip
-Adafruit_NeoPixel strip3(NUMPIXELS3, A2, NEO_GRBW + NEO_KHZ800);  // strip 3 is de bovenste strip
-
-// voor het scannen
-int scanPos = 0;       // De huidige positie van de middelste led
-int scanRichting = 1;  // 1 is naar rechts/boven, -1 is naar links/onder
 unsigned long laatsteStapTijd = 0;
-int richtingsWisselTeller = 0;  // bijhouden hoe vaak de scan heen en weer is gegaan
 
-// Diverse globale vars
+int richtingsWisselTeller = 0;
+
+/// OVERIGE VARIABELEN
 unsigned long vorigeMillis = 0;
-int fase = 1;  // Houdt bij in welke fase we zitten
+
+int fase = 1;
+
 bool ledAan = false;
 
 
-void setup() {
-  strip1.begin();
-  strip1.show();  // Initialize all pixels to 'off'
-  strip2.begin();
-  strip2.show();  // Initialize all pixels to 'off'
-  strip3.begin();
-  strip3.show();  // Initialize all pixels to 'off'
-  pinMode(knop, INPUT_PULLUP);
-
-  Serial.begin(115200);
+/// FUNCTIE VOOR WIT LICHT
+uint32_t wit(Adafruit_NeoPixel &strip, int b){
+  return strip.Color(0,0,0,b);
 }
 
-void loop() {
+/// SETUP
+void setup(){
+
+  strip1.begin();
+  strip1.show();
+
+  strip2.begin();
+  strip2.show();
+
+  strip3.begin();
+  strip3.show();
+
+  pinMode(knop,INPUT_PULLUP);
+
+  Serial.begin(115200);
+
+  // voorkomt automatische recalibratie capsensor
+  cs_4_6.set_CS_AutocaL_Millis(0xFFFFFFFF);
+}
+
+
+/// LOOP
+void loop(){
+
   int knopStand = digitalRead(knop);
 
- // Start de capacitieve Sensor als de knop ingedruk wordt
-  if (knopStand == LOW) {
-    long start = millis();
-    capSens = cs_4_6.capacitiveSensor(30);
+  // capsensor meten
+  capSens = cs_4_6.capacitiveSensor(30);
 
-    Serial.println(capSens);        
-  }
+  Serial.println(capSens);
 
- 
-  if (capSens >100 && fase == 1) {
+/// START SCAN (KNOP + SENSOR)
+  if(capSens > 100 && knopStand == LOW && !sensorActief && fase == 1){
+
+    sensorActief = true;
+
+    // rode LED direct uitzetten
+    strip2.setPixelColor(KNIPPER_LED, strip2.Color(0,0,0,0));
+    strip2.show();
+
     fase = 2;
-    richtingsWisselTeller = 0;  // Reset de teller voor de nieuwe scan
-    scanPos = 0;                // Start bij het begin
-    scanRichting = 1;           // Start de goede kant op
-    Serial.println("Scan start, rode LED uit");
+
+    richtingsWisselTeller = 0;
+    scanPos = 0;
+    scanRichting = 1;
   }
 
-  //// ------- DE FASES ------ ////
-  if (fase == 1) {  // Rode knipperled
+  // reset trigger wanneer sensor losgelaten wordt
+  if(capSens < 50){
+    sensorActief = false;
+  }
+
+////////////////////////////////////////////////////
+//// FASES
+////////////////////////////////////////////////////
+
+  if(fase == 1){
+    // rode LED knippert
     knipperLed(1);
+  }
+  else if(fase == 2){
+    // scan effect
+    scannenHeenWeerVullen(scanSnelheid);
+  }
+  else if(fase == 3){
 
-  } else if (fase == 2) {  // scannen
-    scannenHeenWeerVullen(50);
-
-  } else if (fase == 3) {  // alles knipperen
+    // alle strips aan
     zetStripAan(strip1);
     zetStripAan(strip2);
     zetStripAan(strip3);
-    delay(1000);
+    delay(500);
+
+    // alles uit
     zetStripUit(strip1);
     zetStripUit(strip2);
     zetStripUit(strip3);
     delay(20);
+
+    // nog een keer aan
     zetStripAan(strip1);
     zetStripAan(strip2);
     zetStripAan(strip3);
-    fadeStripUit(50);  //deze zie je goed als de max helderheid 255 is, dus voor testen is het niet zichtbaar
-
+    fadeStripUit(50);
     delay(1000);
+
+    // systeem reset
     fase = 1;
+    ledAan = false;
   }
+
 }
 
-// ---------------------------========= Effecten =========---------------- //
-
-//// ----- Scan effect waarbij STEEDS DRIE LEDS DIE AAN ZIJN ---
-void scannenHeenWeer(int snelheid) {  // Steeds 3 leds
-  if (millis() - laatsteStapTijd >= snelheid) {
+//// SCAN EFFECT
+void scannenHeenWeerVullen(int snelheid){
+  if(millis() - laatsteStapTijd >= snelheid){
     laatsteStapTijd = millis();
-    strip1.clear();
-
-    for (int i = -1; i <= 1; i++) {
-      int huidigeLed = scanPos + i;
-      if (huidigeLed >= 0 && huidigeLed < NUMPIXELS1) {
-        strip1.setPixelColor(huidigeLed, strip1.Color(255, 255, 255, 255));
-      }
-    }
-    strip1.setBrightness(maxHelderheid);
-    strip1.show();
-
-    scanPos += scanRichting;
-
-    // Check of we bij een uiteinde zijn
-    if (scanPos >= NUMPIXELS1 - 1 || scanPos <= 0) {
-      scanRichting *= -1;       // Draai om
-      richtingsWisselTeller++;  // Tel een wissel
-
-      //als hij boven is (dus Numpixels), dan gaat boven aan. Is hij beneden, dan gaat beneden (i = 0) even aan
-      if (scanPos <= 0) {  // de onderste aan en uitzetten als hij er is
-        zetStripAan(strip2);
-        delay(200);
-        zetStripUit(strip2);
-
-      } else {  //de bovenledstrip aanzetten als hij boven is
-        zetStripAan(strip3);
-        delay(200);
-        zetStripUit(strip3);
-      }
-
-
-      // Na 4 wissels (heen, terug, heen, terug) is hij 2x volledig rond geweest
-      if (richtingsWisselTeller >= 4) {
-        fase = 3;        // Stop de scan, start alles aan
-        strip1.clear();  // Maak de strip schoon
-        strip1.show();
-        Serial.println("Scan klaar volgende fase");
-      }
-    }
-  }
-}
-
-
-//// ----- Scan effect met fases. drie leds zijn aan, aan het einde vult hij
-void scannenHeenWeerVullen(int snelheid) {
-  if (millis() - laatsteStapTijd >= snelheid) {
-    laatsteStapTijd = millis();
-
-    // --- RONDE 1: Heen en Terug (3 leds die bewegen) ---
-    if (richtingsWisselTeller < 2) {
-      strip1.clear();  // Wis de strip voor het bewegingseffect
-      for (int i = -1; i <= 1; i++) {
-        int huidigeLed = scanPos + i;
-        if (huidigeLed >= 0 && huidigeLed < NUMPIXELS1) {
-          strip1.setPixelColor(huidigeLed, strip1.Color(255, 255, 255, 255));
-        }
-      }
+    if(richtingsWisselTeller < 2){
+      strip1.clear();
+      int helderMidden = 255;
+      int helderZijkant = 80;
+      int helderBuiten = 20;
+      if(scanPos >=0 && scanPos < NUMPIXELS1)
+        strip1.setPixelColor(scanPos, wit(strip1, helderMidden));
+      if(scanPos-1 >=0)
+        strip1.setPixelColor(scanPos-1, wit(strip1, helderZijkant));
+      if(scanPos+1 < NUMPIXELS1)
+        strip1.setPixelColor(scanPos+1, wit(strip1, helderZijkant));
+      if(scanPos-2 >=0)
+        strip1.setPixelColor(scanPos-2, wit(strip1, helderBuiten));
+      if(scanPos+2 < NUMPIXELS1)
+        strip1.setPixelColor(scanPos+2, wit(strip1, helderBuiten));
     }
 
-    // --- RONDE 2 HEEN: Vullen (1 led per keer erbij) ---
-    else if (richtingsWisselTeller == 2) {
-      // We doen GEEN clear(), dus de vorige leds blijven aan
-      if (scanPos >= 0 && scanPos < NUMPIXELS1) {
-        strip1.setPixelColor(scanPos, strip1.Color(255, 255, 255, 255));
-      }
+    else if(richtingsWisselTeller == 2){
+      if(scanPos >=0 && scanPos < NUMPIXELS1)
+        strip1.setPixelColor(scanPos, wit(strip1,255));
     }
 
-    // --- RONDE 2 TERUG: Leegmaken (1 led per keer weg) ---
-    else if (richtingsWisselTeller == 3) {
-      // We zetten de huidige led op zwart (gummen)
-      if (scanPos >= 0 && scanPos < NUMPIXELS1) {
-        strip1.setPixelColor(scanPos, strip1.Color(0, 0, 0, 0));
-      }
+    else if(richtingsWisselTeller == 3){
+      if(scanPos >=0 && scanPos < NUMPIXELS1)
+        strip1.setPixelColor(scanPos, wit(strip1,0));
     }
 
     strip1.setBrightness(maxHelderheid);
     strip1.show();
-
-    // Positie verplaatsen
     scanPos += scanRichting;
 
-    // Check uiteinden
-    if (scanPos >= NUMPIXELS1 || scanPos < 0) {
+////////////////////////////////////////////////////
+//// RICHTING WISSEL
+
+    if(scanPos >= NUMPIXELS1 || scanPos < 0){
       scanRichting *= -1;
-
-      // Correctie: zorg dat we niet buiten de strip blijven hangen
-      if (scanPos >= NUMPIXELS1) scanPos = NUMPIXELS1 - 1;
-      if (scanPos < 0) scanPos = 0;
-
+      if(scanPos >= NUMPIXELS1) scanPos = NUMPIXELS1-1;
+      if(scanPos < 0) scanPos = 0;
       richtingsWisselTeller++;
-      //als hij boven is (dus Numpixels), dan gaat boven aan. Is hij beneden, dan gaat beneden (i = 0) even aan
-      if (scanPos <= 0) {  // de onderste aan en uitzetten als hij er is
+      if(scanPos <= 0){
         zetStripAan(strip2);
         delay(200);
         zetStripUit(strip2);
+      }
 
-      } else {  //de bovenledstrip aanzetten als hij boven is
+      else{
         zetStripAan(strip3);
         delay(200);
         zetStripUit(strip3);
       }
 
-      // Stop na de wissels (Heen, Terug, Vullen, Gummen)
-      if (richtingsWisselTeller >= 4) {
+      if(richtingsWisselTeller >= 4){
         fase = 3;
         strip1.clear();
         strip1.show();
-        Serial.println("Scan cyclus voltooid");
       }
     }
   }
 }
 
+////////////////////////////////////////////////////
+//// STRIP AAN
+////////////////////////////////////////////////////
 
-
-// ---------------- ALLES AAN
-void zetStripAan(Adafruit_NeoPixel &strip) {
-  uint32_t wit = strip.Color(255, 255, 255, 255);
-
-  strip.fill(wit);  // Vul de specifieke strip
+void zetStripAan(Adafruit_NeoPixel &strip){
+  uint32_t witLed = wit(strip,255);
+  strip.fill(witLed);
   strip.setBrightness(maxHelderheid);
-  strip.show();  // Laat het resultaat zien
+  strip.show();
 }
 
-// // ---------------- ALLES UIT
-void zetStripUit(Adafruit_NeoPixel &strip) {
-  uint32_t uit = strip.Color(0, 0, 0, 0);
+////////////////////////////////////////////////////
+//// STRIP UIT
+////////////////////////////////////////////////////
 
-  strip.fill(uit);
-  strip.show();  // Laat het resultaat zien
+void zetStripUit(Adafruit_NeoPixel &strip){
+  strip.clear();
+  strip.show();
 }
 
-// // ---------------- FADE OUT
-void fadeStripUit(int wachttijd) {
+////////////////////////////////////////////////////
+//// FADE UIT
+////////////////////////////////////////////////////
 
-  for (int i = maxHelderheid; i >= 0; i -= 5) {
+void fadeStripUit(int wachttijd){
+  for(int i=maxHelderheid;i>=0;i-=5){
+
     strip1.setBrightness(i);
     strip2.setBrightness(i);
     strip3.setBrightness(i);
+
     strip1.show();
     strip2.show();
     strip3.show();
-    delay(wachttijd);  // Hoe hoger de wachttijd, hoe trager de fade
+
+    delay(wachttijd);
   }
-  strip1.clear();             // Zet alle pixels intern op 0 (uit)
-  strip2.clear();             // Zet alle pixels intern op 0 (uit)
-  strip3.clear();             // Zet alle pixels intern op 0 (uit)
-  strip1.setBrightness(255);  // Reset brightness voor de volgende keer dat je de strip aanzet
-  strip2.setBrightness(255);  // Reset brightness voor de volgende keer dat je de strip aanzet
-  strip3.setBrightness(255);  // Reset brightness voor de volgende keer dat je de strip aanzet
+
+  strip1.clear();
+  strip2.clear();
+  strip3.clear();
+
+  strip1.setBrightness(255);
+  strip2.setBrightness(255);
+  strip3.setBrightness(255);
+
   strip1.show();
   strip2.show();
   strip3.show();
 }
 
+////////////////////////////////////////////////////
+//// KNIPPER LED
+////////////////////////////////////////////////////
 
-/// KNIPPPERLEDJE ROOD
-void knipperLed(int snelheid) {
-
+void knipperLed(int snelheid){
   unsigned long interval = 1000 / (frequentie * snelheid);
   unsigned long huidigeMillis = millis();
-
-  if (huidigeMillis - vorigeMillis >= interval) {
-    vorigeMillis = huidigeMillis;  // Onthoud de tijd voor de volgende keer
-
-    // Wissel de status
+  if(huidigeMillis - vorigeMillis >= interval){
+    vorigeMillis = huidigeMillis;
     ledAan = !ledAan;
-    if (ledAan) {
-      strip2.setPixelColor(KNIPPER_LED, strip2.Color(255, 0, 0, 0));
-    } else {
-      strip2.setPixelColor(KNIPPER_LED, strip2.Color(0, 0, 0, 0));
-    }
+    if(ledAan)
+      strip2.setPixelColor(KNIPPER_LED, strip2.Color(255,0,0,0));
+    else
+      strip2.setPixelColor(KNIPPER_LED, strip2.Color(0,0,0,0));
+
     strip2.setBrightness(maxHelderheid);
     strip2.show();
   }
