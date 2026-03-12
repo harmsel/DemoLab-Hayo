@@ -1,5 +1,6 @@
 #include <Adafruit_NeoPixel.h>
 
+
 // Instellingen
 #define PIN          A0    // De datalijn (DI) aangesloten op A0
 #define NUMPIXELS    60    // Het aantal leds op je strip
