@@ -26,6 +26,7 @@ int knopB[GROEPEN] = { 10, 8, 6, 4 };
 int startA[GROEPEN] = { 0, 4, 10, 30 };  // dit zijn de startposities van de A Leds
 int startB[GROEPEN] = { 2, 6, 20, 40 };  // dit zijn de startposities van de B Leds
 
+
 /// BLINK STATE
 int blinkFase = 0;
 unsigned long laatsteBlink = 0;
