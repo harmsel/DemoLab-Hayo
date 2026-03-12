@@ -197,7 +197,7 @@ void zoeklicht() {
     stripPannen.clear();
 
     if (keuze != -1) {
-      tekenPan(keuze);
+      tekenPan(keuze); /////// HIER NOG AANGEVEN BIJ WELKE KNOPKEUZE 1 T/M 5 WELKE PANKEUZE HOORT
     }
 
     stripPannen.show();
