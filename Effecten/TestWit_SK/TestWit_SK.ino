@@ -4,8 +4,8 @@
 #define PIN          A0    // De datalijn (DI) aangesloten op A0
 #define NUMPIXELS    60    // Het aantal leds op je strip
 
+
 // Initialiseer de strip. 
-// Voor WS2813 gebruiken we 'NEO_GRB'.
 Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 
 void setup() {
