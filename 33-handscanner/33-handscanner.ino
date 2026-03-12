@@ -2,14 +2,14 @@
 #include <CapacitiveSensor.h>
 
 ///  ++++++++++.     instellingen voor de leds +++++++
-int maxHelderheid = 250;
+int maxHelderheid = 50;
 int scanSnelheid = 200;  //loopschelheid van de scanleds
 int frequentie = 2;      // Hoe vaak per seconde (Hz) nipperen
 
 ///  --------- AANSLUITINGEN AAN DE ARDUINO ------
-const int knop = 10;                                //drukknop
-const int knopTest = 11;                            //Alleen voor testen
-CapacitiveSensor sensCap = CapacitiveSensor(3, 4);  // laatste pin = sensor
+const int knop = 2;                                //drukknop
+CapacitiveSensor cs_4_6 = CapacitiveSensor(4, 6);  // Sensor op pin 6 - 330k tussen 4 & 6
+long capSens; //waarde van de capsensor. Hier even globaal maken 
 
 // AANTALLEN EN POSITIE OP DE LEDSTRIPJES
 #define NUMPIXELS1 12
@@ -42,16 +42,23 @@ void setup() {
   strip3.begin();
   strip3.show();  // Initialize all pixels to 'off'
   pinMode(knop, INPUT_PULLUP);
-  pinMode(knopTest, INPUT_PULLUP);
+
   Serial.begin(115200);
 }
 
 void loop() {
   int knopStand = digitalRead(knop);
-  int testKnopStand = digitalRead(knopTest);
 
-  // Start de scan als beide knoppen ingedrukt worden
-  if (knopStand == LOW && testKnopStand == LOW && fase == 1) {
+ // Start de capacitieve Sensor als de knop ingedruk wordt
+  if (knopStand == LOW) {
+    long start = millis();
+    capSens = cs_4_6.capacitiveSensor(30);
+
+    Serial.println(capSens);        
+  }
+
+ 
+  if (capSens >100 && fase == 1) {
     fase = 2;
     richtingsWisselTeller = 0;  // Reset de teller voor de nieuwe scan
     scanPos = 0;                // Start bij het begin

@@ -1,233 +1,166 @@
 #include <Adafruit_NeoPixel.h>
-int helderheid = 50;  //max 255
+
+#define NUMPIXELS 12
+#define GROEPEN 4  //dit moeten er dus 4 worden...
+
+int maxHelderheid = 20;
+/// ADEM EFFECT
+float angle = 0;
+float pulseSpeed = 0.3;  //deze aanpassen, op 0.3 gaat het best oke
+
+const unsigned long timeoutTijd = 50000;  // in milliseconden
+
+Adafruit_NeoPixel strip(NUMPIXELS, A0, NEO_GRBW + NEO_KHZ800);
+Adafruit_NeoPixel strip1(NUMPIXELS, A1, NEO_GRBW + NEO_KHZ800);
+
+/// KNOPPEN en hun pinnen
+#define GROEPEN 4  // aantal keuzes
+int knopA[GROEPEN] = { 11, 9, 7, 5 };
+int knopB[GROEPEN] = { 10, 8, 6, 4 };
+
+#define BUTTON_START 2  // pin van de startknop
 
 
-#define PIN A0
-#define NUM 6
+// --======= LEDS EN HUN POSITIE hier staat de ledjes definitie
+#define LEDS_PER_KNOP 2
+int startA[GROEPEN] = { 0, 4, 10, 30 };  // dit zijn de startposities van de A Leds
+int startB[GROEPEN] = { 2, 6, 20, 40 };  // dit zijn de startposities van de B Leds
 
-// Knoppen definities
-#define BUTTON_START 12
-#define BUTTON_1A 11
-#define BUTTON_1B 10
-#define BUTTON_2A 9
-#define BUTTON_2B 8
-#define BUTTON_3A 7
-#define BUTTON_3B 6
-#define BUTTON_4A 5
-#define BUTTON_4B 4
+/// BLINK STATE
+int blinkFase = 0;
+unsigned long laatsteBlink = 0;
+const int blinkInterval = 1000;
 
-Adafruit_NeoPixel strip(NUM, PIN, NEO_GRBW + NEO_KHZ800);
+/// FASES
+int fase = 1;
 
-int effectMode = 0;
-bool effectActive = true;
+/// keuze van de knoppen
+int keuze[GROEPEN] = { -1, -1, -1, -1 };
 
-// Geheugen voor de keuzes
-int set1Choice = 0;
-int set2Choice = 0;
-int set3Choice = 0;
-int set4Choice = 0;
-
-// Timer variabelen
-unsigned long lastButtonTime = 0;     // Tijdstip van de laatste knopdruk
-const unsigned long timeout = 30000;  // 30 seconden in milliseconden
-
-// Ademen variablen
-float pulseVal = 0;
-bool fadingIn = true;
-float pulseSpeed = 3.0;  //snelheid ademen effect
+//onthouden voor starten van de timout
+unsigned long laatsteInteractie = 0;
 
 void setup() {
-  pinMode(BUTTON_START, INPUT_PULLUP);
-  pinMode(BUTTON_1A, INPUT_PULLUP);
-  pinMode(BUTTON_1B, INPUT_PULLUP);
-  pinMode(BUTTON_2A, INPUT_PULLUP);
-  pinMode(BUTTON_2B, INPUT_PULLUP);
-  pinMode(BUTTON_3A, INPUT_PULLUP);
-  pinMode(BUTTON_3B, INPUT_PULLUP);
-  pinMode(BUTTON_4A, INPUT_PULLUP);
-  pinMode(BUTTON_4B, INPUT_PULLUP);
-
   strip.begin();
-  strip.setBrightness(helderheid);
   strip.show();
+  strip1.begin();
+  strip1.show();
+  pinMode(BUTTON_START, INPUT_PULLUP);
+  for (int i = 0; i < GROEPEN; i++) {
+    pinMode(knopA[i], INPUT_PULLUP);
+    pinMode(knopB[i], INPUT_PULLUP);
+  }
   Serial.begin(115200);
-
-  lastButtonTime = millis();  // Start de timer
 }
 
 void loop() {
-  checkButtons();
-
-  // Check of de 30 seconden voorbij zijn
-  if (!effectActive && (millis() - lastButtonTime > timeout)) {
-    Serial.println("Timeout: Terug naar regenboog...");
-    resetToEffects();
+  if (fase == 1) {
+    ademEffect();
+    Serial.println("Fase 1");
   }
+  if (fase == 2) {
+    ledstrip1uit();
+    updateBlink();
+    ledsBijKnoppen();
+    Serial.println("Fase 2");
+    // zet ledstrip 1 uit
+  }
+  leesKnoppen();
+  checkTimeout();
+}
 
-  if (effectActive) {
-    if (effectMode == 0) {
-      ademEffect(70);
-    } else if (effectMode == 1) {
-      fireStep(100);
-    } else {
-      fireStep(100);
+/// ----------------------- KNOPPEN
+void leesKnoppen() {
+  if (digitalRead(BUTTON_START) == LOW) {  /// STARTKNOP
+    fase = 2;
+    laatsteInteractie = millis();  // voor de ademtimer
+    for (int i = 0; i < GROEPEN; i++) {
+      keuze[i] = -1;
+    }
+    blinkFase = 0;
+  }
+  for (int i = 0; i < GROEPEN; i++) {  // A EN B KNOPPEN
+    if (digitalRead(knopA[i]) == LOW) {
+      keuze[i] = 0;
+      laatsteInteractie = millis();  // voor de ademtimer
+    }
+    if (digitalRead(knopB[i]) == LOW) {
+      keuze[i] = 1;
+      laatsteInteractie = millis();  // voor de ademtimer
     }
   }
 }
 
 
-void resetToEffects() {
-  effectActive = true;
-  set1Choice = 0;
-  set2Choice = 0;
-  set3Choice = 0;
-  set4Choice = 0;
-  strip.clear();
-  lastButtonTime = millis();  // Reset timer ook bij handmatige reset
+/// ---------- ledsBijKnoppen A en B die knipperen
+void updateBlink() {
+  if (millis() - laatsteBlink > blinkInterval) {
+    laatsteBlink = millis();
+    blinkFase++;
+    if (blinkFase > 1) blinkFase = 0;  //als je blinkFase>2 doet gaan de knoppen tussendoor even uit
+  }
 }
 
-/// --------- LICHT EFFECTEN  ---------------||||||||----------------------////
-
-/// - ademen
-void ademEffect(int ademSnelheid) {
-  static float angle = 0;
-  float intensity = (sin(angle) + 1.0) / 2.0;  // Bereken de helderheid (0.0 tot 1.0)
-  int currentBrightness = intensity * helderheid;
-
-  // Kleur instellen voor alle LED's (hier op wit gezet via het W-kanaal van de GRBW strip)
-  // Je kunt dit aanpassen naar strip.Color(currentBrightness, 0, 0, 0) voor rood, etc.
-  uint32_t color = strip.Color(currentBrightness, currentBrightness, currentBrightness, currentBrightness);
-
-  for (int i = 0; i < NUM; i++) {
-    strip.setPixelColor(i, color);
-  }
-  strip.show();
-  // Verhoog de hoek voor de volgende stap (hoe kleiner de stap, hoe trager het ademen)
-  angle += (pulseSpeed / ademSnelheid);
-  if (angle > TWO_PI) {
-    angle -= TWO_PI;
-  }
-  delay(10);  // Kleine pauze voor stabiliteit
-}
-
-
-
-// EFFECT 3: "Color Wipe Bounce" - Een kleur die heen en weer loopt
-void bounceStep(int wait) {
-  static int pos = 0;
-  static int direction = 1;
-  static uint32_t color = strip.Color(255, 0, 100, 0);  // Roze/Paars
-
+/// ---------- Hiermee zet je de leds bij de knoppen aan en knipperen natuurlijk
+void ledsBijKnoppen() {
   strip.clear();
-  strip.setPixelColor(pos, color);
-  strip.show();
-
-  pos += direction;
-  if (pos <= 0 || pos >= NUM - 1) {
-    direction *= -1;  // Draai om bij de uiteinden
-    // Verander van kleur bij elk keerpunt (optioneel)
-    if (pos == 0) color = strip.Color(0, 255, 255, 0);  // Cyaan
-    else color = strip.Color(255, 200, 0, 0);           // Goud
-  }
-  delay(wait * 2);
-}
-
-// EFFECT 4: "Theater Chase" - Looplicht effect (wit met kleuren)
-void theaterStep(int wait) {
-  static int q = 0;
-  strip.clear();
-
-  for (int i = 0; i < NUM; i++) {
-    if ((i + q) % 3 == 0) {
-      strip.setPixelColor(i, strip.Color(0, 0, 0, 255));  // Witte pixel
+  for (int g = 0; g < GROEPEN; g++) {
+    if (keuze[g] == 0) {
+      tekenLedBlok(startA[g]);
+    } else if (keuze[g] == 1) {
+      tekenLedBlok(startB[g]);
     } else {
-      strip.setPixelColor(i, strip.Color(50, 0, 150, 0));  // Paarse pixel achtergrond
+      if (blinkFase == 0) {
+        tekenLedBlok(startA[g]);
+      }
+      if (blinkFase == 1) {
+        tekenLedBlok(startB[g]);
+      }
     }
   }
   strip.show();
-
-  q++;
-  if (q >= 3) q = 0;
-  delay(wait * 1.5);
 }
 
-// EFFECT 5: "Fire Flicker" - Warme flikkering zoals een vuurtje
-void fireStep(int wait) {
-  for (int i = 0; i < NUM; i++) {
-    int flicker = random(50, 200);  // Willekeurige helderheid
-    // Mix van Rood en Oranje/Geel
-    strip.setPixelColor(i, strip.Color(flicker, flicker / 4, 0, 0));
+// Functie zodat we centraal de led locaties kunnen definieeeren
+void tekenLedBlok(int start) {
+  uint32_t kleur = strip.Color(maxHelderheid, maxHelderheid, maxHelderheid, maxHelderheid);
+  for (int i = 0; i < LEDS_PER_KNOP; i++) {
+    strip.setPixelColor(start + i, kleur);
   }
+}
+
+/// timeout, dan gaat hij wer terug naar ademeen
+void checkTimeout() {
+  if (fase == 2) {
+    if (millis() - laatsteInteractie > timeoutTijd) {
+      Serial.println("Timeout → terug naar ademstand");
+      // keuzes wissen
+      for (int i = 0; i < GROEPEN; i++) {
+        keuze[i] = -1;
+      }
+      fase = 1;
+    }
+  }
+}
+
+void ledstrip1uit() {
+  strip1.fill(0);  // 0 is de kortste weg naar "alles uit"
+  Serial.println("Komt hij hier wel");
+
   strip.show();
-  delay(wait + random(50));  // Onregelmatige pauze voor realistischer effect
+  strip1.show();
 }
 
+/// ---------- ADEM EFFECT
+void ademEffect() {
+  float intensity = (sin(angle) + 1.0) / 2.0;
+  int brightness = intensity * maxHelderheid;
+  uint32_t color = strip.Color(brightness, brightness, brightness, brightness);
+  strip.fill(color);
+  strip1.fill(color);
 
-
-/// --------- KNOPPEN ------------------------------------------------////
-void checkButtons() {
-  // We controleren of er een knop is ingedrukt
-  bool pressed = false;
-
-  if (digitalRead(BUTTON_START) == LOW) {
-    resetToEffects();
-    effectMode++;
-    if (effectMode > 1) effectMode = 0;
-    pressed = true;
-  }
-
-  // SET 1
-  if (digitalRead(BUTTON_1A) == LOW) {
-    set1Choice = 1;
-    effectActive = false;
-    pressed = true;
-  }
-  if (digitalRead(BUTTON_1B) == LOW) {
-    set1Choice = 2;
-    effectActive = false;
-    pressed = true;
-  }
-
-  // SET 2
-  if (digitalRead(BUTTON_2A) == LOW) {
-    set2Choice = 1;
-    effectActive = false;
-    pressed = true;
-  }
-  if (digitalRead(BUTTON_2B) == LOW) {
-    set2Choice = 2;
-    effectActive = false;
-    pressed = true;
-  }
-
-  // SET 3
-  if (digitalRead(BUTTON_3A) == LOW) {
-    set3Choice = 1;
-    effectActive = false;
-    pressed = true;
-  }
-  if (digitalRead(BUTTON_3B) == LOW) {
-    set3Choice = 2;
-    effectActive = false;
-    pressed = true;
-  }
-
-  // SET 4
-  if (digitalRead(BUTTON_4A) == LOW) {
-    set3Choice = 1;
-    effectActive = false;
-    pressed = true;
-  }
-  if (digitalRead(BUTTON_4B) == LOW) {
-    set3Choice = 2;
-    effectActive = false;
-    pressed = true;
-  }
-
-  // Als er gedrukt is, reset de timer
-  if (pressed) {
-    lastButtonTime = millis();
-    delay(200);  // Debounce
-  }
+  strip.show();
+  strip1.show();
+  angle += pulseSpeed / 100.0;
+  if (angle > TWO_PI) angle -= TWO_PI;
 }
-
