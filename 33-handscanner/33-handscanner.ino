@@ -1,21 +1,24 @@
 #include <Adafruit_NeoPixel.h>
 #include <CapacitiveSensor.h>
 
-///  ++++++++++.     instellingen voor de leds +++++++
+///  +++++++++++.     instellingen voor de leds +++++++
 int maxHelderheid = 50;
 int scanSnelheid = 200;  //loopschelheid van de scanleds
-int frequentie = 2;      // Hoe vaak per seconde (Hz) nipperen
-
-///  --------- AANSLUITINGEN AAN DE ARDUINO ------
-const int knop = 2;                                //drukknop
-CapacitiveSensor cs_4_6 = CapacitiveSensor(4, 6);  // Sensor op pin 6 - 330k tussen 4 & 6
-long capSens; //waarde van de capsensor. Hier even globaal maken 
+int frequentie = 2;      // Rode LED Hoe vaak per seconde (Hz) nipperen
 
 // AANTALLEN EN POSITIE OP DE LEDSTRIPJES
 #define NUMPIXELS1 12
 #define NUMPIXELS2 12
 #define NUMPIXELS3 12
 #define KNIPPER_LED 0
+
+
+///  --------- AANSLUITINGEN AAN DE ARDUINO ------
+const int knop = 2;                                //drukknop
+CapacitiveSensor cs_4_6 = CapacitiveSensor(4, 6);  // Sensor op pin 6 - 330k tussen 4 & 6
+long capSens; //waarde van de capsensor. Hier even globaal maken 
+
+
 
 //#define NUMPIXELS 60 ////VOOR TESTEN
 Adafruit_NeoPixel strip1(NUMPIXELS1, A0, NEO_GRBW + NEO_KHZ800);  // strip 1 zijn de twee vertikale strips
