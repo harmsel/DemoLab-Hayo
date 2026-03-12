@@ -1,5 +1,6 @@
 #include <CapacitiveSensor.h>
 
+
 const int knop = 2;
 CapacitiveSensor cs_4_6 = CapacitiveSensor(4, 6);  // Sensor op pin 6 - 330k tussen 4 & 6
 
