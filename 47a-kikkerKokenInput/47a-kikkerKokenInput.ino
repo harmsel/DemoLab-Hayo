@@ -1,12 +1,12 @@
 #include <Adafruit_NeoPixel.h>
 
-#define NUMPIXELS 12
+#define NUMPIXELS 120
 #define GROEPEN 4  //dit moeten er dus 4 worden...
 
-int maxHelderheid = 20;
+int maxHelderheid = 255;
 /// ADEM EFFECT
 float angle = 0;
-float pulseSpeed = 0.3;  //deze aanpassen, op 0.3 gaat het best oke
+float pulseSpeed = 2;  //deze aanpassen, op 0.3 gaat het best oke
 
 const unsigned long timeoutTijd = 50000;  // in milliseconden
 
