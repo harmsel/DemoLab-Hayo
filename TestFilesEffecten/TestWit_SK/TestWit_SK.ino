@@ -21,21 +21,21 @@ void loop() {
   strip.show();
   delay(2000);
 
-    // 1. Alleen de witte aan
+    // 2. Alleen de witte aan
   for(int i = 0; i < NUMPIXELS; i++) {
     strip.setPixelColor(i, strip.Color(0, 0, 0, 255)); 
   }
   strip.show();
   delay(2000);
 
-      // 1. Alleen de witte aan en een klein beetje rood, om het warmer te maken
+  // 3. Alleen de witte aan en een klein beetje rood, om het warmer te maken
   for(int i = 0; i < NUMPIXELS; i++) {
     strip.setPixelColor(i, strip.Color(50, 0, 0, 255)); 
   }
   strip.show();
   delay(2000);
 
-  // 2. Alles uit
+  // 4. Alles uit
   strip.clear();
   strip.show();
   delay(1000);
