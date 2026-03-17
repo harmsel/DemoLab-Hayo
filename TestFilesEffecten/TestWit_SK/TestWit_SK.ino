@@ -1,31 +1,28 @@
 #include <Adafruit_NeoPixel.h>
 
 // Instellingen
-#define PIN          A0    // De datalijn (DI) aangesloten op A0
-#define NUMPIXELS    60    // Het aantal leds op je strip
+#define PIN          A0     // Data pin
+#define NUMPIXELS    60     // Aantal leds
 
-
-// Initialiseer de strip. 
-Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
+// LET OP: RGBW strip → NEO_GRBW
+Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRBW + NEO_KHZ800); // nu dus wel met de SK strip ;-)1
 
 void setup() {
-  strip.begin();           
-  strip.show();            // Alles uit bij de start
+  strip.begin();
+  strip.show(); // alles uit bij start
 }
 
 void loop() {
-  // 1. Alle leds aan op vol vermogen (Wit gemaakt door RGB)
-  // Omdat WS2813 geen aparte W-kanaal heeft, gebruiken we 3 parameters.
-  for(int i=0; i<NUMPIXELS; i++) {
-    strip.setPixelColor(i, strip.Color(255, 255, 255)); 
+
+  // 1. Alle leds aan volgorde is R, G, B, Wit. Zet gerust de eeste 3 uit om te zien wat het verschil is
+  for(int i = 0; i < NUMPIXELS; i++) {
+    strip.setPixelColor(i, strip.Color(255, 255, 255, 255)); 
   }
   strip.show();
   delay(2000);
 
-  // 2. Alles uit voor 1 seconde
+  // 2. Alles uit
   strip.clear();
   strip.show();
   delay(1000);
-
-
 }
