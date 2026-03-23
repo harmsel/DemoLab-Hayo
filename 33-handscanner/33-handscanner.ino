@@ -3,15 +3,15 @@
 
 
 /// INSTELLINGEN
-int maxHelderheid = 20;
-int scanSnelheid = 100;   // lager getal = snellere scan
+int maxHelderheid = 255;
+int scanSnelheid = 30;   // lager getal = snellere scan
 int frequentie = 2;       // knipperfrequentie rode LED
 
-#define NUMPIXELS1 12
-#define NUMPIXELS2 12
-#define NUMPIXELS3 12
+#define NUMPIXELS1 45
+#define NUMPIXELS2 45
+#define NUMPIXELS3 45
 
-#define KNIPPER_LED 0     // positie rode LED
+#define KNIPPER_LED 4     // positie rode LED
 
 /// SENSOR EN KNOP
 const int knop = 2;
@@ -23,9 +23,9 @@ bool sensorActief = false;   // voorkomt meerdere triggers
 /// LEDSTRIPS
 ////////////////////////////////////////////////////
 
-Adafruit_NeoPixel strip1(NUMPIXELS1, A0, NEO_GRBW + NEO_KHZ800);
-Adafruit_NeoPixel strip2(NUMPIXELS2, A1, NEO_GRBW + NEO_KHZ800);
-Adafruit_NeoPixel strip3(NUMPIXELS3, A2, NEO_GRBW + NEO_KHZ800);
+Adafruit_NeoPixel strip1(NUMPIXELS1, A0, NEO_GRBW + NEO_KHZ800); // vertikaal 
+Adafruit_NeoPixel strip2(NUMPIXELS2, A1, NEO_GRBW + NEO_KHZ800); // onder 
+Adafruit_NeoPixel strip3(NUMPIXELS3, A2, NEO_GRBW + NEO_KHZ800); // boven
 
 
 /// SCAN VARIABELEN
@@ -46,7 +46,7 @@ bool ledAan = false;
 
 /// FUNCTIE VOOR WIT LICHT
 uint32_t wit(Adafruit_NeoPixel &strip, int b){
-  return strip.Color(0,0,0,b);
+  return strip.Color(b,b,b,b);
 }
 
 /// SETUP
@@ -64,6 +64,7 @@ void setup(){
   pinMode(knop,INPUT_PULLUP);
 
   Serial.begin(115200);
+  Serial.println("BOOT");
 
   // voorkomt automatische recalibratie capsensor
   cs_4_6.set_CS_AutocaL_Millis(0xFFFFFFFF);
@@ -75,10 +76,17 @@ void loop(){
 
   int knopStand = digitalRead(knop);
 
-  // capsensor meten
-  capSens = cs_4_6.capacitiveSensor(30);
+  Serial.println(knopStand);
 
-  Serial.println(capSens);
+
+
+  // capsensor alleen bij ingedrukte knop (capacitiveSensor() is traag)
+  if(knopStand == LOW){
+    capSens = cs_4_6.capacitiveSensor(30);
+    Serial.println(capSens);
+  } else {
+    capSens = 0;
+  }
 
 /// START SCAN (KNOP + SENSOR)
   if(capSens > 100 && knopStand == LOW && !sensorActief && fase == 1){
@@ -125,14 +133,14 @@ void loop(){
     zetStripUit(strip1);
     zetStripUit(strip2);
     zetStripUit(strip3);
-    delay(20);
+    delay(400); // langer uit zodat de knipper richting fade duidelijker is
 
     // nog een keer aan
     zetStripAan(strip1);
     zetStripAan(strip2);
     zetStripAan(strip3);
-    fadeStripUit(50);
-    delay(1000);
+    fadeStripUit(8); //Millis lager  getal is sneller 
+    delay(1000); //
 
     // systeem reset
     fase = 1;
@@ -185,18 +193,20 @@ void scannenHeenWeerVullen(int snelheid){
       if(scanPos < 0) scanPos = 0;
       richtingsWisselTeller++;
       if(scanPos <= 0){
+        // Start van "onder naar boven" vulling: onderste strip blijft aan.
         zetStripAan(strip2);
-        delay(200);
-        zetStripUit(strip2);
-      }
-
-      else{
-        zetStripAan(strip3);
-        delay(200);
+        // Houd de andere strip uit zodat het effect helder blijft.
         zetStripUit(strip3);
       }
 
-      if(richtingsWisselTeller >= 4){
+      else{
+        // Start van "boven naar beneden" vulling: bovenste strip aan.
+        zetStripAan(strip3);
+        // Zet onderste strip uit, zodat je het bereik duidelijk ziet.
+        zetStripUit(strip2);
+      }
+
+      if(richtingsWisselTeller >= 3){
         fase = 3;
         strip1.clear();
         strip1.show();
