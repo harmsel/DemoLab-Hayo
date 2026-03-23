@@ -2,12 +2,12 @@
 
 
 // Instellingen
-#define PIN          A0    // De datalijn (DI) aangesloten op A0
-#define NUMPIXELS    60    // Het aantal leds op je strip
+#define PIN          A2    // De datalijn (DI) aangesloten op A0
+#define NUMPIXELS   80    // Het aantal leds op je strip
 
 // Initialiseer de strip. 
 // Voor WS2813 gebruiken we 'NEO_GRB'.
-Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRBW + NEO_KHZ800);
 
 void setup() {
   strip.begin();           
@@ -24,9 +24,9 @@ void loop() {
   delay(2000);
 
   // 2. Alles uit voor 1 seconde
-  strip.clear();
-  strip.show();
-  delay(1000);
+strip.clear();
+ strip.show();
+delay(1000);
 
 
 }

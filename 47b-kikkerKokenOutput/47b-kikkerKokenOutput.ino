@@ -1,38 +1,61 @@
 #include <Adafruit_NeoPixel.h>
 
 int maxHelderheid = 255;
-const unsigned long timeoutTijd = 10000;
+const unsigned long timeoutTijd = 18000;
 
-#define NUM_KNOP_LEDS 120
+#define NUM_KNOP_LEDS 25
 #define NUM_PAN_LEDS 120
-#define NUM_EFFECT_LEDS 120
 
+// ===============================
 #define GROEPEN 5
 int knop[GROEPEN] = {11,10,9,8,7};
 
-#define LEDS_PER_KNOP 20
-int startLed[GROEPEN] = {0,20,40,60,80};
+#define LEDS_PER_KNOP 5
 
-int panStart[GROEPEN] = {0,20,40,60,80};
-#define LEDS_PER_PAN 20
+// OMGEKEERDE VOLGORDE
+int startLed[GROEPEN] = {20,15,10,5,0};
 
+int panStart[GROEPEN] = {0,8,16,24,32};
+#define LEDS_PER_PAN 8
+
+// ===============================
+// EFFECT STRIP CONFIG
+// ===============================
+#define BUBBLE_PIXELS 72
+#define STEAM_PIXELS 111
+#define NUM_EFFECT_LEDS (BUBBLE_PIXELS + STEAM_PIXELS)
+
+// ===============================
+// STOOM INSTELLINGEN
+// ===============================
 #define STEAM_PARTICLES 20
-#define STEAM_FADE 0.82
+#define STEAM_FADE 0.92
 #define STEAM_SPEED_MIN 1
-#define STEAM_SPEED_MAX 5
+#define STEAM_SPEED_MAX 2
+
+#define STEAM_SIZE_MIN 3
+#define STEAM_SIZE_MAX 8
 
 float steamPos[STEAM_PARTICLES];
 int steamSpeed[STEAM_PARTICLES];
 int steamDrift[STEAM_PARTICLES];
 int steamBrightness[STEAM_PARTICLES];
+int steamSize[STEAM_PARTICLES];
 
-#define BUBBLE_PIXELS 30
-#define BUBBLE_COUNT 16
+// ===============================
+#define BUBBLE_COUNT 8
 
 int bubblePos[BUBBLE_COUNT];
 int bubbleSize[BUBBLE_COUNT];
 int bubbleLife[BUBBLE_COUNT];
 
+// ===============================
+// ROULETTE INSTELLING
+// ===============================
+#define ROULETTE_INTERVAL 190 // pauze
+#define ROULETTE_MAX 50 // 55 de lengte van de roulette korte getal is korter
+
+// ===============================
 float angle = 0;
 float pulseSpeed = 2;
 
@@ -41,6 +64,7 @@ Adafruit_NeoPixel stripPannen(NUM_PAN_LEDS, A1, NEO_GRBW + NEO_KHZ800);
 Adafruit_NeoPixel stripEffect(NUM_EFFECT_LEDS, A2, NEO_GRBW + NEO_KHZ800);
 
 int huidigePan = -1;
+int vorigePan = -1;   // 
 
 int keuze = -1;
 int fase = 1;
@@ -53,23 +77,19 @@ unsigned long laatsteSteam = 0;
 bool zoekActief = false;
 
 int rouletteStappen = 0;
-#define ROULETTE_MAX 25
 int juistePan = -1;
 
-int zoekInterval = 120;
-
-//////////////////////////////////////////////////////////
-// wit functie
-//////////////////////////////////////////////////////////
-
+// ===============================
 uint32_t steamWhite(int b){
   return stripEffect.Color(b,b,b,b);
 }
 
-//////////////////////////////////////////////////////////
-// SETUP
-//////////////////////////////////////////////////////////
+// ===============================
+int mapKnopNaarPan(int knopIndex){
+  return GROEPEN - 1 - knopIndex;
+}
 
+// ===============================
 void setup(){
 
   stripKnoppen.begin();
@@ -92,7 +112,8 @@ void setup(){
     steamPos[i] = BUBBLE_PIXELS + random(0,10);
     steamSpeed[i] = random(STEAM_SPEED_MIN,STEAM_SPEED_MAX+1);
     steamDrift[i] = random(-1,2);
-    steamBrightness[i] = random(maxHelderheid/2,maxHelderheid);
+    steamBrightness[i] = random(maxHelderheid/3,maxHelderheid*0.8);
+    steamSize[i] = random(STEAM_SIZE_MIN, STEAM_SIZE_MAX);
   }
 
   for(int i=0;i<BUBBLE_COUNT;i++){
@@ -102,19 +123,15 @@ void setup(){
   }
 }
 
-//////////////////////////////////////////////////////////
-// LOOP
-//////////////////////////////////////////////////////////
-
+// ===============================
 void loop(){
 
-  bubbleEffect();
-  stoomEffect();
-
-  if(fase==1){
+  if(fase == 1){
+    bubbleEffect();
+    stoomEffect();
     ademEffect();
   }
-  else if(fase==2){
+  else if(fase == 2){
     ledsBijKnoppen();
     roulettePannen();
   }
@@ -123,10 +140,7 @@ void loop(){
   checkTimeout();
 }
 
-//////////////////////////////////////////////////////////
-// KNOPPEN
-//////////////////////////////////////////////////////////
-
+// ===============================
 void leesKnoppen(){
 
   for(int i=0;i<GROEPEN;i++){
@@ -136,17 +150,16 @@ void leesKnoppen(){
       keuze = i;
       fase = 2;
 
-      startRoulette();
+      stripEffect.clear();
+      stripEffect.show();
 
+      startRoulette();
       laatsteInteractie = millis();
     }
   }
 }
 
-//////////////////////////////////////////////////////////
-// LEDS BIJ KNOPPEN
-//////////////////////////////////////////////////////////
-
+// ===============================
 void ledsBijKnoppen(){
 
   stripKnoppen.clear();
@@ -155,22 +168,20 @@ void ledsBijKnoppen(){
 
     uint32_t kleur = stripKnoppen.Color(maxHelderheid,maxHelderheid,maxHelderheid,maxHelderheid);
 
+    int start = startLed[keuze];
+
     for(int i=0;i<LEDS_PER_KNOP;i++){
-      stripKnoppen.setPixelColor(startLed[keuze]+i,kleur);
+      stripKnoppen.setPixelColor(start + i, kleur);
     }
   }
 
   stripKnoppen.show();
 }
 
-//////////////////////////////////////////////////////////
-// ADEM EFFECT
-//////////////////////////////////////////////////////////
-
+// ===============================
 void ademEffect(){
 
   float intensity = (sin(angle)+1.0)/2.0;
-
   int brightness = intensity*maxHelderheid;
 
   uint32_t kleur = stripKnoppen.Color(brightness,brightness,brightness,brightness);
@@ -179,30 +190,29 @@ void ademEffect(){
   stripKnoppen.show();
 
   angle += pulseSpeed/100.0;
-
   if(angle>TWO_PI) angle -= TWO_PI;
 }
 
-//////////////////////////////////////////////////////////
-// START ROULETTE
-//////////////////////////////////////////////////////////
-
+// ===============================
 void startRoulette(){
 
   zoekActief = true;
   rouletteStappen = 0;
 
-  juistePan = GROEPEN - 1 - keuze;
+  juistePan = mapKnopNaarPan(keuze);
+
+  vorigePan = -1; // reset zodat eerste keuze vrij is
+
+  stripEffect.clear();
+  stripEffect.show();
 }
 
-//////////////////////////////////////////////////////////
-// ROULETTE EFFECT
-//////////////////////////////////////////////////////////
-
+// ===============================
 void roulettePannen(){
 
   if(!zoekActief) return;
-  if(millis()-laatsteZoek < zoekInterval) return;
+
+  if(millis() - laatsteZoek < ROULETTE_INTERVAL) return;
 
   laatsteZoek = millis();
 
@@ -210,10 +220,16 @@ void roulettePannen(){
 
   if(rouletteStappen < ROULETTE_MAX){
 
-    huidigePan = random(0,GROEPEN);
+    int nieuwePan;
 
-  }
-  else{
+    do {
+      nieuwePan = random(0, GROEPEN);
+    } while(nieuwePan == vorigePan);
+
+    huidigePan = nieuwePan;
+    vorigePan = huidigePan;
+
+  } else {
 
     huidigePan = juistePan;
     zoekActief = false;
@@ -225,92 +241,76 @@ void roulettePannen(){
   rouletteStappen++;
 }
 
-//////////////////////////////////////////////////////////
-// STOOM EFFECT
-//////////////////////////////////////////////////////////
-
+// ===============================
 void stoomEffect(){
 
-  if(millis()-laatsteSteam < 60) return;
+  if(millis()-laatsteSteam < 120) return;
   laatsteSteam = millis();
 
   for(int i=BUBBLE_PIXELS;i<NUM_EFFECT_LEDS;i++){
-
     uint32_t c = stripEffect.getPixelColor(i);
     int w = c & 0xFF;
-
     w *= STEAM_FADE;
-
     stripEffect.setPixelColor(i,steamWhite(w));
   }
 
   for(int i=0;i<STEAM_PARTICLES;i++){
 
-    steamPos[i] += steamSpeed[i] + random(-1,2);
+    steamPos[i] += steamSpeed[i];
 
     if(random(5)==0){
       steamPos[i] += steamDrift[i];
     }
 
+    if(steamSize[i] < STEAM_SIZE_MAX && random(10)==0){
+      steamSize[i]++;
+    }
+
     if(steamPos[i] >= NUM_EFFECT_LEDS){
 
       if(random(4)==0){
-
         steamPos[i] = BUBBLE_PIXELS + random(0,10);
-
         steamSpeed[i] = random(STEAM_SPEED_MIN,STEAM_SPEED_MAX+1);
         steamDrift[i] = random(-1,2);
-        steamBrightness[i] = random(maxHelderheid/2,maxHelderheid);
-
-      }
-      else{
+        steamBrightness[i] = random(maxHelderheid/3,maxHelderheid*0.8);
+        steamSize[i] = random(STEAM_SIZE_MIN, STEAM_SIZE_MAX);
+      } else {
         steamPos[i] = NUM_EFFECT_LEDS + random(10,30);
       }
     }
 
     int p = (int)steamPos[i];
 
-    if(p >= BUBBLE_PIXELS && p < NUM_EFFECT_LEDS){
+    for(int s = -steamSize[i]; s <= steamSize[i]; s++){
 
-      int b = steamBrightness[i];
+      int led = p + s;
 
-      stripEffect.setPixelColor(p,steamWhite(b));
+      if(led >= BUBBLE_PIXELS && led < NUM_EFFECT_LEDS){
 
-      if(p-1 >= BUBBLE_PIXELS)
-        stripEffect.setPixelColor(p-1,steamWhite(b*0.5));
+        float falloff = 1.0 - (abs(s) / (float)steamSize[i]);
+        falloff *= falloff;
 
-      if(p-2 >= BUBBLE_PIXELS)
-        stripEffect.setPixelColor(p-2,steamWhite(b*0.25));
+        int brightness = steamBrightness[i] * falloff;
+
+        stripEffect.setPixelColor(led, steamWhite(brightness));
+      }
     }
   }
 
   stripEffect.show();
 }
 
-//////////////////////////////////////////////////////////
-// BUBBLES
-//////////////////////////////////////////////////////////
-
+// ===============================
 void bubbleEffect(){
 
   if(millis()-laatsteBubble < 10) return;
   laatsteBubble = millis();
 
   for(int i=0;i<BUBBLE_PIXELS;i++){
-
     uint32_t c = stripEffect.getPixelColor(i);
-
-    int r = (c>>24)&0xFF;
-    int g = (c>>16)&0xFF;
-    int b = (c>>8)&0xFF;
     int w = c & 0xFF;
-
-    r *= 0.5;
-    g *= 0.5;
-    b *= 0.5;
     w *= 0.5;
-
-    stripEffect.setPixelColor(i,stripEffect.Color(r,g,b,w));
+    stripEffect.setPixelColor(i,steamWhite(w));
   }
 
   for(int i=0;i<BUBBLE_COUNT;i++){
@@ -318,13 +318,10 @@ void bubbleEffect(){
     int pos = bubblePos[i];
 
     for(int s=0;s<bubbleSize[i];s++){
-
       int led = pos+s;
 
       if(led < BUBBLE_PIXELS){
-
         int b = random(maxHelderheid/2,maxHelderheid+1);
-
         stripEffect.setPixelColor(led,steamWhite(b));
       }
     }
@@ -332,7 +329,6 @@ void bubbleEffect(){
     bubbleLife[i]--;
 
     if(bubbleLife[i] <= 0){
-
       bubblePos[i] = random(0,BUBBLE_PIXELS);
       bubbleSize[i] = random(1,4);
       bubbleLife[i] = random(3,8);
@@ -342,10 +338,7 @@ void bubbleEffect(){
   stripEffect.show();
 }
 
-//////////////////////////////////////////////////////////
-// PANNEN
-//////////////////////////////////////////////////////////
-
+// ===============================
 void tekenPan(int panIndex){
 
   uint32_t kleur = stripPannen.Color(maxHelderheid,maxHelderheid,maxHelderheid,maxHelderheid);
@@ -357,10 +350,7 @@ void tekenPan(int panIndex){
   }
 }
 
-//////////////////////////////////////////////////////////
-// TIMEOUT
-//////////////////////////////////////////////////////////
-
+// ===============================
 void checkTimeout(){
 
   if(fase==2){
