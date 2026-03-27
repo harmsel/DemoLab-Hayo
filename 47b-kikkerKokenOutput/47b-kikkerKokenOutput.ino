@@ -53,7 +53,7 @@ int bubbleLife[BUBBLE_COUNT];
 // ROULETTE INSTELLING
 // ===============================
 #define ROULETTE_INTERVAL 190 // pauze
-#define ROULETTE_MAX 50 // 55 de lengte van de roulette korte getal is korter
+#define ROULETTE_MAX 30 // 55 de lengte van de roulette korte getal is korter
 
 // ===============================
 float angle = 0;
