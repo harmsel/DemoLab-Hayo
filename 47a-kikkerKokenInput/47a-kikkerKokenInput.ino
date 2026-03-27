@@ -1,36 +1,49 @@
 #include <Adafruit_NeoPixel.h>
 
 #define NUMPIXELS 120
-#define GROEPEN 4  //dit moeten er dus 4 worden...
+#define GROEPEN 4  //Groepen van knoppen en leds
 
-int maxHelderheid = 255;
+// Kikker-leds op strip A1 — alleen twee kikkers; knipperen alleen als alle keuzes gemaakt zijn
+#define KIKKER1_START 44
+#define KIKKER1_END 50
+#define KIKKER2_START 51
+#define KIKKER2_END 79
+// Gezamenlijke zone (adem: hier geen licht; knipper: alleen bij alle keuzes)
+#define KIKKER_ZONE_START KIKKER1_START
+#define KIKKER_ZONE_END KIKKER2_END
+
+int maxHelderheid = 255; //deze op 255 zetten om de maximale helderheid te krijgen
 /// ADEM EFFECT
 float angle = 0;
-float pulseSpeed = 2;  //deze aanpassen, op 0.3 gaat het best oke
+float pulseSpeed = 2;  //deze aanpassen, op 2 gaat het best oke
 
-const unsigned long timeoutTijd = 50000;  // in milliseconden
+const unsigned long timeoutTijd = 5000;  // voordat hij terug gaat naar de ademstand in milliseconden
 
 Adafruit_NeoPixel strip(NUMPIXELS, A0, NEO_GRBW + NEO_KHZ800);
 Adafruit_NeoPixel strip1(NUMPIXELS, A1, NEO_GRBW + NEO_KHZ800);
 
 /// KNOPPEN en hun pinnen
-#define GROEPEN 4  // aantal keuzes
-int knopA[GROEPEN] = { 11, 9, 7, 5 };
-int knopB[GROEPEN] = { 10, 8, 6, 4 };
+int knopA[GROEPEN] = { 11, 9, 7, 5 }; //deze zijn de pinnen van de knoppen A
+int knopB[GROEPEN] = { 10, 8, 6, 4 }; //deze zijn de pinnen van de knoppen B
 
 #define BUTTON_START 2  // pin van de startknop
 
 
 // --======= LEDS EN HUN POSITIE hier staat de ledjes definitie
-#define LEDS_PER_KNOP 2
-int startA[GROEPEN] = { 0, 4, 10, 30 };  // dit zijn de startposities van de A Leds
-int startB[GROEPEN] = { 2, 6, 20, 40 };  // dit zijn de startposities van de B Leds
+#define LEDS_PER_KNOP 11
+int startA[GROEPEN] = { 0, 22, 44, 66 };  // dit zijn de startposities van de A Leds
+int startB[GROEPEN] = { 11, 33, 55, 77 };  // dit zijn de startposities van de B Leds
 
 
-/// BLINK STATE
+/// De A en B knoppen gaan omstebeurt aan en uit
 int blinkFase = 0;
 unsigned long laatsteBlink = 0;
-const int blinkInterval = 1000;
+const int blinkInterval = 1000; //zo lang blijft elke knopserie aan 
+
+// Kikker-effect (A1) knippert sneller dan knoppen
+int kikkerBlinkFase = 0;
+unsigned long laatsteKikkerBlink = 0;
+const int kikkerBlinkInterval = 150; // ms
 
 /// FASES
 int fase = 1;
@@ -40,6 +53,13 @@ int keuze[GROEPEN] = { -1, -1, -1, -1 };
 
 //onthouden voor starten van de timout
 unsigned long laatsteInteractie = 0;
+
+bool alleKeuzesGemaakt() {
+  for (int i = 0; i < GROEPEN; i++) {
+    if (keuze[i] == -1) return false;
+  }
+  return true;
+}
 
 void setup() {
   strip.begin();
@@ -60,9 +80,9 @@ void loop() {
     Serial.println("Fase 1");
   }
   if (fase == 2) {
-    ledstrip1uit();
     updateBlink();
     ledsBijKnoppen();
+    kikkerEffectA1();
     Serial.println("Fase 2");
     // zet ledstrip 1 uit
   }
@@ -152,6 +172,33 @@ void ledstrip1uit() {
   strip1.show();
 }
 
+/// ---------- KIKKER EFFECT (strip A1): alleen in fase 2; knipperen alleen bij alle keuzes
+void kikkerEffectA1() {
+  if (millis() - laatsteKikkerBlink > kikkerBlinkInterval) {
+    laatsteKikkerBlink = millis();
+    kikkerBlinkFase = 1 - kikkerBlinkFase;
+  }
+
+  uint32_t kikkerKleur = strip1.Color(maxHelderheid, maxHelderheid, maxHelderheid, maxHelderheid);
+
+  strip1.clear();
+  if (!alleKeuzesGemaakt()) {
+    strip1.show();
+    return;
+  }
+  // Twee kikkers om en om
+  if (kikkerBlinkFase == 0) {
+    for (int i = KIKKER1_START; i <= KIKKER1_END; i++) {
+      strip1.setPixelColor(i, kikkerKleur);
+    }
+  } else {
+    for (int i = KIKKER2_START; i <= KIKKER2_END; i++) {
+      strip1.setPixelColor(i, kikkerKleur);
+    }
+  }
+  strip1.show();
+}
+
 /// ---------- ADEM EFFECT
 void ademEffect() {
   float intensity = (sin(angle) + 1.0) / 2.0;
@@ -159,6 +206,10 @@ void ademEffect() {
   uint32_t color = strip.Color(brightness, brightness, brightness, brightness);
   strip.fill(color);
   strip1.fill(color);
+  // Kikker-zone op A1 blijft uit tijdens ademen
+  for (int i = KIKKER_ZONE_START; i <= KIKKER_ZONE_END; i++) {
+    strip1.setPixelColor(i, 0);
+  }
 
   strip.show();
   strip1.show();
