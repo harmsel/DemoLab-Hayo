@@ -18,6 +18,8 @@
 #define KIKKER_ZONE_END KIKKER2_END
 
 int maxHelderheid = 255; //deze op 255 zetten om de maximale helderheid te krijgen
+// Zachter ademen vóór start (fase 1); na startknop blijft fase 2 op maxHelderheid
+const int maxHelderheidAdemFase1 = 90;
 /// ADEM EFFECT
 float angle = 0;
 float pulseSpeed = 2;  //deze aanpassen, op 2 gaat het best oke
@@ -68,9 +70,13 @@ void updateAdemHoek() {
   if (angle > TWO_PI) angle -= TWO_PI;
 }
 
-int ademHelderheid() {
+int ademHelderheidMetMax(int maxBr) {
   float intensity = (sin(angle) + 1.0) / 2.0;
-  return (int)(intensity * maxHelderheid);
+  return (int)(intensity * maxBr);
+}
+
+int ademHelderheid() {
+  return ademHelderheidMetMax(maxHelderheid);
 }
 
 void tekenLedBlokHelderheid(int start, int helderheid) {
@@ -82,7 +88,7 @@ void tekenLedBlokHelderheid(int start, int helderheid) {
 
 /// Alleen knop-leds op A0: A- en B-blok per groep dezelfde adem-helderheid
 void ademKnopLedsA0() {
-  int br = ademHelderheid();
+  int br = ademHelderheidMetMax(maxHelderheidAdemFase1);
   strip.clear();
   for (int g = 0; g < GROEPEN; g++) {
     tekenLedBlokHelderheid(startA[g], br);
@@ -213,16 +219,25 @@ void kikkerEffectA1() {
 
 /// ---------- ADEM EFFECT (fase 1): knop-leds op A0 ademen; A1 ademt behalve kikker-zone; startknop vast of uit (nooit ademen)
 void ademEffect() {
-  int brightness = ademHelderheid();
-  uint32_t color = strip.Color(brightness, brightness, brightness, brightness);
+  int brFase1 = ademHelderheidMetMax(maxHelderheidAdemFase1);
+  uint32_t color = strip.Color(brFase1, brFase1, brFase1, brFase1);
   ademKnopLedsA0();
   strip1.fill(color);
-  for (int i = KIKKER_ZONE_START; i <= KIKKER_ZONE_END; i++) {
+
+  // Kikker 2 blijft uit in fase 1; kikker 1 moet juist mee ademen.
+  for (int i = KIKKER2_START; i <= KIKKER2_END; i++) {
     strip1.setPixelColor(i, 0);
   }
+
+  int brKikker1 = ademHelderheidMetMax(maxHelderheid);
+  uint32_t kikker1Kleur = strip1.Color(brKikker1, brKikker1, brKikker1, brKikker1);
   for (int i = KIKKER1_EXTRA_START; i <= KIKKER1_EXTRA_END; i++) {
-    strip1.setPixelColor(i, 0);
+    strip1.setPixelColor(i, kikker1Kleur);
   }
+  for (int i = KIKKER1_START; i <= KIKKER1_END; i++) {
+    strip1.setPixelColor(i, kikker1Kleur);
+  }
+
   uint32_t startKleur = strip1.Color(maxHelderheid, maxHelderheid, maxHelderheid, maxHelderheid);
   for (int i = STARTKNOP_LED_START; i <= STARTKNOP_LED_END; i++) {
     strip1.setPixelColor(i, startknopLedsVastAan ? startKleur : 0);
