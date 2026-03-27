@@ -3,12 +3,17 @@
 #define NUMPIXELS 120
 #define GROEPEN 4  //Groepen van knoppen en leds
 
-// Kikker-leds op strip A1 — alleen twee kikkers; knipperen alleen als alle keuzes gemaakt zijn
-#define KIKKER1_START 44
+// Kikker-leds op strip A1 — na alle keuzes: allemaal ademen (zelfde als globale adem)
+#define KIKKER1_EXTRA_START 19 // tegelijk met kikker 1 Kikker bovenin
+#define KIKKER1_EXTRA_END 21 // Kikker bovenin
+
+#define KIKKER1_START 44 // kikker onderin start bij led 44
 #define KIKKER1_END 50
-#define KIKKER2_START 51
+#define KIKKER2_START 51 // kikker 2 start bij led 51
 #define KIKKER2_END 79
-// Gezamenlijke zone (adem: hier geen licht; knipper: alleen bij alle keuzes)
+
+
+// Zone 44–79: tijdens rust geen adem op A1; na alle keuzes ademen die + extra 20–21
 #define KIKKER_ZONE_START KIKKER1_START
 #define KIKKER_ZONE_END KIKKER2_END
 
@@ -31,19 +36,13 @@ int knopB[GROEPEN] = { 10, 8, 6, 4 }; //deze zijn de pinnen van de knoppen B
 
 // --======= LEDS EN HUN POSITIE hier staat de ledjes definitie
 #define LEDS_PER_KNOP 11
+// Startknop-leds op strip A1 — vast aan tijdens ademen tot ergens A of B is ingedrukt; ademen nooit
+#define STARTKNOP_LED_START 24
+#define STARTKNOP_LED_END 33
+
 int startA[GROEPEN] = { 0, 22, 44, 66 };  // dit zijn de startposities van de A Leds
 int startB[GROEPEN] = { 11, 33, 55, 77 };  // dit zijn de startposities van de B Leds
 
-
-/// De A en B knoppen gaan omstebeurt aan en uit
-int blinkFase = 0;
-unsigned long laatsteBlink = 0;
-const int blinkInterval = 1000; //zo lang blijft elke knopserie aan 
-
-// Kikker-effect (A1) knippert sneller dan knoppen
-int kikkerBlinkFase = 0;
-unsigned long laatsteKikkerBlink = 0;
-const int kikkerBlinkInterval = 150; // ms
 
 /// FASES
 int fase = 1;
@@ -54,11 +53,42 @@ int keuze[GROEPEN] = { -1, -1, -1, -1 };
 //onthouden voor starten van de timout
 unsigned long laatsteInteractie = 0;
 
+// Startknop-leds: vast max aan tijdens ademen; na eerste A/B false (uit bij adem), weer true na timeout→fase1
+bool startknopLedsVastAan = true;
+
 bool alleKeuzesGemaakt() {
   for (int i = 0; i < GROEPEN; i++) {
     if (keuze[i] == -1) return false;
   }
   return true;
+}
+
+void updateAdemHoek() {
+  angle += pulseSpeed / 100.0;
+  if (angle > TWO_PI) angle -= TWO_PI;
+}
+
+int ademHelderheid() {
+  float intensity = (sin(angle) + 1.0) / 2.0;
+  return (int)(intensity * maxHelderheid);
+}
+
+void tekenLedBlokHelderheid(int start, int helderheid) {
+  uint32_t kleur = strip.Color(helderheid, helderheid, helderheid, helderheid);
+  for (int i = 0; i < LEDS_PER_KNOP; i++) {
+    strip.setPixelColor(start + i, kleur);
+  }
+}
+
+/// Alleen knop-leds op A0: A- en B-blok per groep dezelfde adem-helderheid
+void ademKnopLedsA0() {
+  int br = ademHelderheid();
+  strip.clear();
+  for (int g = 0; g < GROEPEN; g++) {
+    tekenLedBlokHelderheid(startA[g], br);
+    tekenLedBlokHelderheid(startB[g], br);
+  }
+  strip.show();
 }
 
 void setup() {
@@ -75,16 +105,15 @@ void setup() {
 }
 
 void loop() {
+  updateAdemHoek();
   if (fase == 1) {
     ademEffect();
     Serial.println("Fase 1");
   }
   if (fase == 2) {
-    updateBlink();
     ledsBijKnoppen();
     kikkerEffectA1();
     Serial.println("Fase 2");
-    // zet ledstrip 1 uit
   }
   leesKnoppen();
   checkTimeout();
@@ -98,32 +127,25 @@ void leesKnoppen() {
     for (int i = 0; i < GROEPEN; i++) {
       keuze[i] = -1;
     }
-    blinkFase = 0;
   }
   for (int i = 0; i < GROEPEN; i++) {  // A EN B KNOPPEN
     if (digitalRead(knopA[i]) == LOW) {
       keuze[i] = 0;
       laatsteInteractie = millis();  // voor de ademtimer
+      startknopLedsVastAan = false;
     }
     if (digitalRead(knopB[i]) == LOW) {
       keuze[i] = 1;
       laatsteInteractie = millis();  // voor de ademtimer
+      startknopLedsVastAan = false;
     }
   }
 }
 
 
-/// ---------- ledsBijKnoppen A en B die knipperen
-void updateBlink() {
-  if (millis() - laatsteBlink > blinkInterval) {
-    laatsteBlink = millis();
-    blinkFase++;
-    if (blinkFase > 1) blinkFase = 0;  //als je blinkFase>2 doet gaan de knoppen tussendoor even uit
-  }
-}
-
-/// ---------- Hiermee zet je de leds bij de knoppen aan en knipperen natuurlijk
+/// ---------- Knop-leds fase 2: gekozen = vast; nog geen keuze = ademen (A en B tegelijk, geen knipperen)
 void ledsBijKnoppen() {
+  int brAdem = ademHelderheid();
   strip.clear();
   for (int g = 0; g < GROEPEN; g++) {
     if (keuze[g] == 0) {
@@ -131,18 +153,13 @@ void ledsBijKnoppen() {
     } else if (keuze[g] == 1) {
       tekenLedBlok(startB[g]);
     } else {
-      if (blinkFase == 0) {
-        tekenLedBlok(startA[g]);
-      }
-      if (blinkFase == 1) {
-        tekenLedBlok(startB[g]);
-      }
+      tekenLedBlokHelderheid(startA[g], brAdem);
+      tekenLedBlokHelderheid(startB[g], brAdem);
     }
   }
   strip.show();
 }
 
-// Functie zodat we centraal de led locaties kunnen definieeeren
 void tekenLedBlok(int start) {
   uint32_t kleur = strip.Color(maxHelderheid, maxHelderheid, maxHelderheid, maxHelderheid);
   for (int i = 0; i < LEDS_PER_KNOP; i++) {
@@ -160,6 +177,7 @@ void checkTimeout() {
         keuze[i] = -1;
       }
       fase = 1;
+      startknopLedsVastAan = true;
     }
   }
 }
@@ -172,47 +190,42 @@ void ledstrip1uit() {
   strip1.show();
 }
 
-/// ---------- KIKKER EFFECT (strip A1): alleen in fase 2; knipperen alleen bij alle keuzes
+/// ---------- KIKKER EFFECT (strip A1): fase 2; als alle A/B gekozen: alle kikker-leds ademen tegelijk
 void kikkerEffectA1() {
-  if (millis() - laatsteKikkerBlink > kikkerBlinkInterval) {
-    laatsteKikkerBlink = millis();
-    kikkerBlinkFase = 1 - kikkerBlinkFase;
-  }
-
-  uint32_t kikkerKleur = strip1.Color(maxHelderheid, maxHelderheid, maxHelderheid, maxHelderheid);
-
   strip1.clear();
   if (!alleKeuzesGemaakt()) {
     strip1.show();
     return;
   }
-  // Twee kikkers om en om
-  if (kikkerBlinkFase == 0) {
-    for (int i = KIKKER1_START; i <= KIKKER1_END; i++) {
-      strip1.setPixelColor(i, kikkerKleur);
-    }
-  } else {
-    for (int i = KIKKER2_START; i <= KIKKER2_END; i++) {
-      strip1.setPixelColor(i, kikkerKleur);
-    }
+  int br = ademHelderheid();
+  uint32_t kleur = strip1.Color(br, br, br, br);
+  for (int i = KIKKER1_EXTRA_START; i <= KIKKER1_EXTRA_END; i++) {
+    strip1.setPixelColor(i, kleur);
+  }
+  for (int i = KIKKER1_START; i <= KIKKER1_END; i++) {
+    strip1.setPixelColor(i, kleur);
+  }
+  for (int i = KIKKER2_START; i <= KIKKER2_END; i++) {
+    strip1.setPixelColor(i, kleur);
   }
   strip1.show();
 }
 
-/// ---------- ADEM EFFECT
+/// ---------- ADEM EFFECT (fase 1): knop-leds op A0 ademen; A1 ademt behalve kikker-zone; startknop vast of uit (nooit ademen)
 void ademEffect() {
-  float intensity = (sin(angle) + 1.0) / 2.0;
-  int brightness = intensity * maxHelderheid;
+  int brightness = ademHelderheid();
   uint32_t color = strip.Color(brightness, brightness, brightness, brightness);
-  strip.fill(color);
+  ademKnopLedsA0();
   strip1.fill(color);
-  // Kikker-zone op A1 blijft uit tijdens ademen
   for (int i = KIKKER_ZONE_START; i <= KIKKER_ZONE_END; i++) {
     strip1.setPixelColor(i, 0);
   }
-
-  strip.show();
+  for (int i = KIKKER1_EXTRA_START; i <= KIKKER1_EXTRA_END; i++) {
+    strip1.setPixelColor(i, 0);
+  }
+  uint32_t startKleur = strip1.Color(maxHelderheid, maxHelderheid, maxHelderheid, maxHelderheid);
+  for (int i = STARTKNOP_LED_START; i <= STARTKNOP_LED_END; i++) {
+    strip1.setPixelColor(i, startknopLedsVastAan ? startKleur : 0);
+  }
   strip1.show();
-  angle += pulseSpeed / 100.0;
-  if (angle > TWO_PI) angle -= TWO_PI;
 }
